@@ -1,0 +1,13 @@
++ curl -fsSL http://archive.ubuntu.com/ubuntu/pool/universe/x/x265/x265_4.1.orig.tar.xz -o x265.tar.xz
++ tar -xf x265.tar.xz
+++ tar -tf x265.tar.xz
+++ head -1
+++ cut -d/ -f1
+tar: stdout: write error
++ SRC=x265_4.1
++ echo 'source dir: x265_4.1'
+source dir: x265_4.1
++ cd x265_4.1
++ cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED=OFF -DBUILD_STATIC=ON -DENABLE_CLI=OFF -DCMAKE_INSTALL_PREFIX=/home/runner/work/ffmpeg-9.0.2-gha/ffmpeg-9.0.2-gha/x265prefix
+CMake Error: The source directory "/home/runner/work/ffmpeg-9.0.2-gha/ffmpeg-9.0.2-gha/x265_4.1" does not appear to contain CMakeLists.txt.
+Specify --help for usage, or press the help button on the CMake GUI.
