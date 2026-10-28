@@ -15,7 +15,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential nasm yasm pkg-config curl gpg file \
             zlib1g-dev libx264-dev libx265-dev libmp3lame-dev \
-            libvorbis-dev libopus-dev
+            libvorbis-dev libopus-dev libnuma-dev
 
       - name: Download FFmpeg 9.0.2 source and signature
         run: |
@@ -34,19 +34,32 @@ jobs:
       - name: Extract
         run: tar -xf ffmpeg-9.0.2.tar.xz
 
+      - name: Build x265 3.7 static (distro 3.5 too old for FFmpeg 9.0)
+        run: |
+          curl -fsSL 'https://code.videolan.org/videolan/x265/-/archive/x265_3.7/x265-x265_3.7.tar.bz2' -o x265.tar.bz2
+          tar -xf x265.tar.bz2
+          cd x265-x265_3.7
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED=OFF -DBUILD_STATIC=ON \
+            -DENABLE_CLI=OFF -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/x265prefix"
+          cmake --build build -j"$(nproc)"
+          cmake --install build
+          PKG_CONFIG_PATH="$GITHUB_WORKSPACE/x265prefix/lib/pkgconfig" pkg-config --modversion x265
+
       - name: Configure (static, GPL, common codecs)
         run: |
           cd ffmpeg-9.0.2
+          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/x265prefix/lib/pkgconfig"
           echo "--- tool versions ---"
           nasm -v
-          for p in x264 x265 mp3lame vorbis opus; do echo -n "$p: "; pkg-config --modversion $p 2>/dev/null || echo MISSING; done
+          pkg-config --modversion x265
+          for p in x264 mp3lame vorbis opus; do echo -n "$p: "; pkg-config --modversion $p 2>/dev/null || echo "(via check_lib)"; done
           ./configure --prefix="$GITHUB_WORKSPACE/out" \
             --enable-static --disable-shared --disable-debug \
             --pkg-config-flags=--static --extra-cflags=-static \
             --extra-ldflags=-static \
             --enable-gpl --enable-libx264 --enable-libx265 \
             --enable-libmp3lame --enable-libvorbis --enable-libopus \
-            || { echo "=== configure FAILED, config.log tail ==="; tail -n 100 config.log; exit 1; }
+            || { echo "=== configure FAILED, config.log tail ==="; tail -n 120 ffbuild/config.log; exit 1; }
 
       - name: Build
         run: |
