@@ -4,6 +4,9 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -43,7 +46,9 @@ jobs:
           ( set -x
             curl -fsSL http://archive.ubuntu.com/ubuntu/pool/universe/x/x265/x265_4.1.orig.tar.xz -o x265.tar.xz
             tar -xf x265.tar.xz
-            cd x265-4.1
+            SRC="$(tar -tf x265.tar.xz | head -1 | cut -d/ -f1)"
+            echo "source dir: $SRC"
+            cd "$SRC"
             cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED=OFF -DBUILD_STATIC=ON \
               -DENABLE_CLI=OFF -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/x265prefix"
             cmake --build build -j"$(nproc)"
@@ -62,7 +67,8 @@ jobs:
             echo "log unchanged; skipping push"
           else
             git commit -m "x265 build failure log"
-            git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+            git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main \
+              || { echo "PUSH FAILED; dumping x265-build.log inline:"; cat x265-build.log; }
           fi
           exit 1
 
@@ -93,7 +99,8 @@ jobs:
             echo "logs unchanged; skipping push"
           else
             git commit -m "configure failure log"
-            git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+            git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main \
+              || { echo "PUSH FAILED; dumping logs inline:"; cat configure.log; cat config-failure.log 2>/dev/null; }
           fi
           exit 1
 
