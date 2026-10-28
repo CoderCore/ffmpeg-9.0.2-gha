@@ -1,0 +1,77 @@
+name: build-ffmpeg-9.0.2-static
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential nasm yasm pkg-config curl gpg file \
+            zlib1g-dev libx264-dev libx265-dev libmp3lame-dev \
+            libvorbis-dev libopus-dev
+
+      - name: Download FFmpeg 9.0.2 source and signature
+        run: |
+          curl -fsSL -O https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+          curl -fsSL -O https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz.asc
+
+      - name: Verify GPG signature
+        run: |
+          export GNUPGHOME="$(mktemp -d)"
+          FPR=$(gpg --show-keys ffmpeg-9.0.2.tar.xz.asc | awk 'NR==2{print $NF}')
+          KEYID=${FPR: -16}
+          echo "signing key id: $KEYID"
+          gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys "$KEYID"
+          gpg --verify ffmpeg-9.0.2.tar.xz.asc ffmpeg-9.0.2.tar.xz \
+            || { echo "FATAL: GPG signature verification failed"; exit 1; }
+
+      - name: Extract
+        run: tar -xf ffmpeg-9.0.2.tar.xz
+
+      - name: Configure (static, GPL, common codecs)
+        run: |
+          cd ffmpeg-9.0.2
+          ./configure --prefix="$GITHUB_WORKSPACE/out" \
+            --enable-static --disable-shared --disable-debug \
+            --pkg-config-flags=--static --extra-cflags=-static \
+            --extra-ldflags=-static \
+            --enable-gpl --enable-libx264 --enable-libx265 \
+            --enable-libmp3lame --enable-libvorbis --enable-libopus
+
+      - name: Build
+        run: |
+          cd ffmpeg-9.0.2
+          make -j"$(nproc)"
+
+      - name: Install
+        run: |
+          cd ffmpeg-9.0.2
+          make install
+
+      - name: Verify version and static linking
+        run: |
+          ./out/bin/ffmpeg -version | head -5
+          # 必须恰好是 n9.0.2（release 源码树无 git 后缀，不会是 n9.0.2-XX-gXXX）
+          ./out/bin/ffmpeg -version | head -1 | grep -Eq '^ffmpeg version n9\.0\.2( -git)? '
+          file ./out/bin/ffmpeg | grep -q 'statically linked' \
+            && echo "STATIC LINK: OK"
+
+      - name: Package artifact
+        run: |
+          tar -cJf ffmpeg-9.0.2-linux64-static.tar.xz -C out .
+          sha256sum ffmpeg-9.0.2-linux64-static.tar.xz > ffmpeg-9.0.2-linux64-static.tar.xz.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-9.0.2-linux64-static
+          path: |
+            ffmpeg-9.0.2-linux64-static.tar.xz
+            ffmpeg-9.0.2-linux64-static.tar.xz.sha256
