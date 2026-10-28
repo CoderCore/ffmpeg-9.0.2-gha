@@ -1,0 +1,16 @@
++ ./out/bin/ffmpeg -version
++ head -8
+ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers
+built with gcc 13 (Ubuntu 13.3.0-6ubuntu2~24.04.1)
+configuration: --prefix=/home/runner/work/ffmpeg-9.0.2-gha/ffmpeg-9.0.2-gha/out --enable-static --disable-shared --disable-debug --pkg-config-flags=--static --extra-cflags=-static --extra-ldflags=-static --enable-gpl --enable-libx264 --enable-libx265 --enable-libmp3lame --enable-libvorbis --enable-libopus
+libavutil      61.  1.102 / 61.  1.102
+libavcodec     63.  1.102 / 63.  1.102
+libavformat    63.  1.102 / 63.  1.102
+libavdevice    63.  1.102 / 63.  1.102
+libavfilter    12.  1.102 / 12.  1.102
++ file ./out/bin/ffmpeg
+./out/bin/ffmpeg: ELF 64-bit LSB executable, x86-64, version 1 (GNU/Linux), statically linked, BuildID[sha1]=ac0c3ef67fa75f61a0ae244f3ec4fde4de441ef9, for GNU/Linux 3.2.0, stripped
++ readelf -d ./out/bin/ffmpeg
++ head -10
+
+There is no dynamic section in this file.
