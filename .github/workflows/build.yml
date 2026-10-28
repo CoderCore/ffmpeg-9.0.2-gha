@@ -37,12 +37,16 @@ jobs:
       - name: Configure (static, GPL, common codecs)
         run: |
           cd ffmpeg-9.0.2
+          echo "--- tool versions ---"
+          nasm -v
+          for p in x264 x265 mp3lame vorbis opus; do echo -n "$p: "; pkg-config --modversion $p 2>/dev/null || echo MISSING; done
           ./configure --prefix="$GITHUB_WORKSPACE/out" \
             --enable-static --disable-shared --disable-debug \
             --pkg-config-flags=--static --extra-cflags=-static \
             --extra-ldflags=-static \
             --enable-gpl --enable-libx264 --enable-libx265 \
-            --enable-libmp3lame --enable-libvorbis --enable-libopus
+            --enable-libmp3lame --enable-libvorbis --enable-libopus \
+            || { echo "=== configure FAILED, config.log tail ==="; tail -n 100 config.log; exit 1; }
 
       - name: Build
         run: |
