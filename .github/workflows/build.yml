@@ -138,11 +138,40 @@ jobs:
           make install
 
       - name: Verify version and static linking
+        id: verify
+        continue-on-error: true
         run: |
-          ./out/bin/ffmpeg -version | head -5
-          ./out/bin/ffmpeg -version | head -1 | grep -Eq '^ffmpeg version n9\.0\.2(-git)? '
-          file ./out/bin/ffmpeg | grep -q 'statically linked' \
-            && echo "STATIC LINK: OK"
+          ( set -x
+            ./out/bin/ffmpeg -version | head -8
+            file ./out/bin/ffmpeg
+            readelf -d ./out/bin/ffmpeg | head -10
+          ) 2>&1 | tee verify.log
+          # 硬断言 1：版本号必须为 n9.0.2（release 源码树，不带 -git 后缀）
+          ./out/bin/ffmpeg -version | head -1 | grep -Eq 'ffmpeg version n9\.0\.2' \
+            && echo "VERSION ASSERT: OK" \
+            || { echo "VERSION ASSERT: FAIL"; exit 1; }
+          # 硬断言 2：ELF 无 NEEDED 条目 = 真静态链接
+          if readelf -d ./out/bin/ffmpeg | grep -q 'NEEDED'; then
+            echo "STATIC ASSERT: FAIL (dynamic NEEDED entries present)"
+            exit 1
+          else
+            echo "STATIC ASSERT: OK (no NEEDED entries)"
+          fi
+
+      - name: Fail on verify error (commit log)
+        if: steps.verify.outcome == 'failure'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add verify.log
+          if git diff --cached --quiet; then
+            echo "log unchanged; skipping push"
+          else
+            git commit -m "verify failure log"
+            git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main \
+              || { echo "PUSH FAILED; dumping verify.log inline:"; cat verify.log; }
+          fi
+          exit 1
 
       - name: Package artifact
         run: |
