@@ -48,7 +48,7 @@ jobs:
             tar -xf x265.tar.xz
             SRC="$(tar -tf x265.tar.xz | head -1 | cut -d/ -f1)"
             echo "source dir: $SRC"
-            cd "$SRC"
+            cd "$SRC/source"
             cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED=OFF -DBUILD_STATIC=ON \
               -DENABLE_CLI=OFF -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/x265prefix"
             cmake --build build -j"$(nproc)"
