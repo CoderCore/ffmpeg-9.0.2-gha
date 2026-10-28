@@ -24,17 +24,37 @@ jobs:
 
       - name: Download FFmpeg 9.0.2 source and signature
         run: |
-          curl -fsSL -O https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
-          curl -fsSL -O https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz.asc
+          curl -fsSL --retry 3 --retry-delay 2 -O https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+          curl -fsSL --retry 3 --retry-delay 2 -O https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz.asc
 
       - name: Verify GPG signature
+        id: gpg
+        continue-on-error: true
         run: |
-          export GNUPGHOME="$(mktemp -d)"
-          # 官方发布的发布签名公钥（指纹 FCF986EA15E6E293A5644F10B4322F04D67658D8）
-          curl -fsSL https://ffmpeg.org/ffmpeg-devel.asc | gpg --import
-          gpg --list-keys
-          gpg --verify ffmpeg-9.0.2.tar.xz.asc ffmpeg-9.0.2.tar.xz \
-            || { echo "FATAL: GPG signature verification failed"; exit 1; }
+          ( set -x
+            export GNUPGHOME="$(mktemp -d)"
+            # 官方发布的发布签名公钥（指纹 FCF986EA15E6E293A5644F10B4322F04D67658D8）
+            curl -fsSL --retry 3 --retry-delay 2 https://ffmpeg.org/ffmpeg-devel.asc -o ffmpeg-devel.asc
+            gpg --import ffmpeg-devel.asc
+            gpg --list-keys
+            gpg --verify ffmpeg-9.0.2.tar.xz.asc ffmpeg-9.0.2.tar.xz
+          ) 2>&1 | tee gpg-verify.log
+          exit "${PIPESTATUS[0]}"
+
+      - name: Fail on GPG verify error (commit log)
+        if: steps.gpg.outcome == 'failure'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gpg-verify.log
+          if git diff --cached --quiet; then
+            echo "log unchanged; skipping push"
+          else
+            git commit -m "gpg verify failure log"
+            git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main \
+              || { echo "PUSH FAILED; dumping gpg-verify.log inline:"; cat gpg-verify.log; }
+          fi
+          exit 1
 
       - name: Extract
         run: tar -xf ffmpeg-9.0.2.tar.xz
