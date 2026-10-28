@@ -73,6 +73,9 @@ jobs:
               -DENABLE_CLI=OFF -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/x265prefix"
             cmake --build build -j"$(nproc)"
             cmake --install build
+            # Ubuntu 只有共享版 libgcc_s；x265.pc 的 Libs.private 引用 -lgcc_s，
+            # 全静态链接时用一个静态替身满足 ld（与 libgcc.a 同源）
+            cp "$(gcc -print-file-name=libgcc.a)" "$GITHUB_WORKSPACE/x265prefix/lib/libgcc_s.a"
             PKG_CONFIG_PATH="$GITHUB_WORKSPACE/x265prefix/lib/pkgconfig" pkg-config --modversion x265
           ) 2>&1 | tee x265-build.log
           exit "${PIPESTATUS[0]}"
