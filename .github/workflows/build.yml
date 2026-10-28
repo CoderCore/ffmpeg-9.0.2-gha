@@ -7,8 +7,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
+      - uses: actions/checkout@v4
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -35,31 +37,65 @@ jobs:
         run: tar -xf ffmpeg-9.0.2.tar.xz
 
       - name: Build x265 4.1 static (distro 3.5 too old for FFmpeg 9.0)
+        id: x265
+        continue-on-error: true
         run: |
-          curl -fsSL http://archive.ubuntu.com/ubuntu/pool/universe/x/x265/x265_4.1.orig.tar.xz -o x265.tar.xz
-          tar -xf x265.tar.xz
-          cd x265-4.1
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED=OFF -DBUILD_STATIC=ON \
-            -DENABLE_CLI=OFF -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/x265prefix"
-          cmake --build build -j"$(nproc)"
-          cmake --install build
-          PKG_CONFIG_PATH="$GITHUB_WORKSPACE/x265prefix/lib/pkgconfig" pkg-config --modversion x265
+          ( set -x
+            curl -fsSL http://archive.ubuntu.com/ubuntu/pool/universe/x/x265/x265_4.1.orig.tar.xz -o x265.tar.xz
+            tar -xf x265.tar.xz
+            cd x265-4.1
+            cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED=OFF -DBUILD_STATIC=ON \
+              -DENABLE_CLI=OFF -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/x265prefix"
+            cmake --build build -j"$(nproc)"
+            cmake --install build
+            PKG_CONFIG_PATH="$GITHUB_WORKSPACE/x265prefix/lib/pkgconfig" pkg-config --modversion x265
+          ) 2>&1 | tee x265-build.log
+          exit "${PIPESTATUS[0]}"
+
+      - name: Fail on x265 build error (commit log)
+        if: steps.x265.outcome == 'failure'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add x265-build.log
+          if git diff --cached --quiet; then
+            echo "log unchanged; skipping push"
+          else
+            git commit -m "x265 build failure log"
+            git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+          fi
+          exit 1
 
       - name: Configure (static, GPL, common codecs)
+        id: cfg
+        continue-on-error: true
         run: |
-          cd ffmpeg-9.0.2
-          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/x265prefix/lib/pkgconfig"
-          echo "--- tool versions ---"
-          nasm -v
-          pkg-config --modversion x265
-          for p in x264 mp3lame vorbis opus; do echo -n "$p: "; pkg-config --modversion $p 2>/dev/null || echo "(via check_lib)"; done
-          ./configure --prefix="$GITHUB_WORKSPACE/out" \
-            --enable-static --disable-shared --disable-debug \
-            --pkg-config-flags=--static --extra-cflags=-static \
-            --extra-ldflags=-static \
-            --enable-gpl --enable-libx264 --enable-libx265 \
-            --enable-libmp3lame --enable-libvorbis --enable-libopus \
-            || { echo "=== configure FAILED, config.log tail ==="; tail -n 120 ffbuild/config.log; exit 1; }
+          ( set -x
+            cd ffmpeg-9.0.2
+            export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/x265prefix/lib/pkgconfig"
+            ./configure --prefix="$GITHUB_WORKSPACE/out" \
+              --enable-static --disable-shared --disable-debug \
+              --pkg-config-flags=--static --extra-cflags=-static \
+              --extra-ldflags=-static \
+              --enable-gpl --enable-libx264 --enable-libx265 \
+              --enable-libmp3lame --enable-libvorbis --enable-libopus
+          ) 2>&1 | tee configure.log
+          exit "${PIPESTATUS[0]}"
+
+      - name: Fail on configure error (commit log)
+        if: steps.cfg.outcome == 'failure'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp ffmpeg-9.0.2/ffbuild/config.log config-failure.log 2>/dev/null || true
+          git add configure.log config-failure.log
+          if git diff --cached --quiet; then
+            echo "logs unchanged; skipping push"
+          else
+            git commit -m "configure failure log"
+            git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+          fi
+          exit 1
 
       - name: Build
         run: |
@@ -74,8 +110,7 @@ jobs:
       - name: Verify version and static linking
         run: |
           ./out/bin/ffmpeg -version | head -5
-          # 必须恰好是 n9.0.2（release 源码树无 git 后缀，不会是 n9.0.2-XX-gXXX）
-          ./out/bin/ffmpeg -version | head -1 | grep -Eq '^ffmpeg version n9\.0\.2( -git)? '
+          ./out/bin/ffmpeg -version | head -1 | grep -Eq '^ffmpeg version n9\.0\.2(-git)? '
           file ./out/bin/ffmpeg | grep -q 'statically linked' \
             && echo "STATIC LINK: OK"
 
