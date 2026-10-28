@@ -25,10 +25,9 @@ jobs:
       - name: Verify GPG signature
         run: |
           export GNUPGHOME="$(mktemp -d)"
-          FPR=$(gpg --show-keys ffmpeg-9.0.2.tar.xz.asc | awk 'NR==2{print $NF}')
-          KEYID=${FPR: -16}
-          echo "signing key id: $KEYID"
-          gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys "$KEYID"
+          # 官方发布的发布签名公钥（指纹 FCF986EA15E6E293A5644F10B4322F04D67658D8）
+          curl -fsSL https://ffmpeg.org/ffmpeg-devel.asc | gpg --import
+          gpg --list-keys
           gpg --verify ffmpeg-9.0.2.tar.xz.asc ffmpeg-9.0.2.tar.xz \
             || { echo "FATAL: GPG signature verification failed"; exit 1; }
 
