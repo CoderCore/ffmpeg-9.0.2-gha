@@ -14,7 +14,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential nasm yasm pkg-config curl gpg file \
-            zlib1g-dev libx264-dev libx265-dev libmp3lame-dev \
+            zlib1g-dev libx264-dev libmp3lame-dev \
             libvorbis-dev libopus-dev libnuma-dev
 
       - name: Download FFmpeg 9.0.2 source and signature
@@ -34,11 +34,11 @@ jobs:
       - name: Extract
         run: tar -xf ffmpeg-9.0.2.tar.xz
 
-      - name: Build x265 3.7 static (distro 3.5 too old for FFmpeg 9.0)
+      - name: Build x265 4.1 static (distro 3.5 too old for FFmpeg 9.0)
         run: |
-          curl -fsSL 'https://code.videolan.org/videolan/x265/-/archive/x265_3.7/x265-x265_3.7.tar.bz2' -o x265.tar.bz2
-          tar -xf x265.tar.bz2
-          cd x265-x265_3.7
+          curl -fsSL http://archive.ubuntu.com/ubuntu/pool/universe/x/x265/x265_4.1.orig.tar.xz -o x265.tar.xz
+          tar -xf x265.tar.xz
+          cd x265-4.1
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED=OFF -DBUILD_STATIC=ON \
             -DENABLE_CLI=OFF -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/x265prefix"
           cmake --build build -j"$(nproc)"
