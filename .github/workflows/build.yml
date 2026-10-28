@@ -146,8 +146,8 @@ jobs:
             file ./out/bin/ffmpeg
             readelf -d ./out/bin/ffmpeg | head -10
           ) 2>&1 | tee verify.log
-          # 硬断言 1：版本号必须为 n9.0.2（release 源码树，不带 -git 后缀）
-          ./out/bin/ffmpeg -version | head -1 | grep -Eq 'ffmpeg version n9\.0\.2' \
+          # 硬断言 1：版本号必须为 9.0.2（release 源码树，无 -git 后缀）
+          ./out/bin/ffmpeg -version | head -1 | grep -Eq '^ffmpeg version n?9\.0\.2 +Copyright' \
             && echo "VERSION ASSERT: OK" \
             || { echo "VERSION ASSERT: FAIL"; exit 1; }
           # 硬断言 2：ELF 无 NEEDED 条目 = 真静态链接
